@@ -91,12 +91,12 @@ fn main() {
                             println!(
                                 "{}",
                                 vec![
-                                    "\\begin{marginfigure}",
+                                    "\\begin{figure}[H]",
                                     "    \\centering",
-                                    &format!("    \\incfig{{{}}}", no_extension),
+                                    &format!("    \\incfig{{{}}}", file_stem),
                                     "    \\caption{}",
                                     &format!("    \\label{{fig:{}}}", file_stem),
-                                    "\\end{marginfigure}"
+                                    "\\end{figure}"
                                 ]
                                 .join("\n")
                             );
@@ -205,6 +205,7 @@ fn autosave_pdf_tex() -> Result<(), notify::Error> {
 
     Ok(())
 }
+
 
 fn list_figures() {
     for path in glob("figures/**/*.svg")
