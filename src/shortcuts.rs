@@ -7,7 +7,7 @@ use std::sync::{
     Arc,
 };
 use std::{thread, time::Duration};
-use tempfile::NamedTempFile;
+use tempfile::Builder;
 use tfc::KeyboardContext;
 
 pub struct HotkeyListener<'a> {
@@ -81,18 +81,21 @@ impl HotkeyListener<'_> {
     }
 }
 pub fn open_vim() -> io::Result<String> {
-    let temp_file = NamedTempFile::new()?;
+    let temp_file = Builder::new().suffix(".tex").tempfile()?;
     let file_path = temp_file.path().to_str().unwrap().to_string();
 
     let mut process = Command::new("urxvt")
         .args([
             "-geometry",
-            "60x5",
+            "40x15",
             "-name",
-            "popup-bottom-center",
+            "popup-middle-center",
+            "-font",
+            "xft:Monospace:size=17",
             "-e",
-            "vim",
-            &file_path,
+            "fish",
+            "-c",
+            &format!("nvim '{}'", file_path),
         ])
         .spawn()?;
 
