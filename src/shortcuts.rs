@@ -2,6 +2,10 @@ use crate::{clipboard, style};
 use rdev;
 use std::io;
 use std::process::Command;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::{thread, time::Duration};
 use tempfile::NamedTempFile;
 use tfc::KeyboardContext;
@@ -9,6 +13,7 @@ use tfc::KeyboardContext;
 pub struct HotkeyListener<'a> {
     forming_style: bool,
     style: style::Style<'a>,
+    vim_active: Arc<AtomicBool>,
 }
 
 impl HotkeyListener<'_> {
@@ -16,6 +21,7 @@ impl HotkeyListener<'_> {
         Self {
             forming_style: false,
             style: style::Style::new(),
+            vim_active: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -27,11 +33,16 @@ impl HotkeyListener<'_> {
                     self.forming_style = true;
                 }
                 rdev::Key::KeyT => {
-                    let _ = std::thread::spawn(|| {
-                        if let Err(e) = open_vim() {
-                            eprintln!("Error Vim: {}", e);
-                        }
-                    });
+                    let vim_active = Arc::clone(&self.vim_active);
+                    if !vim_active.load(Ordering::SeqCst) {
+                        vim_active.store(true, Ordering::SeqCst);
+                        std::thread::spawn(move || {
+                            if let Err(e) = open_vim() {
+                                eprintln!("Error Vim: {}", e);
+                            }
+                            vim_active.store(false, Ordering::SeqCst);
+                        });
+                    }
                 }
                 rdev::Key::Num1
                 | rdev::Key::Num2
@@ -69,7 +80,6 @@ impl HotkeyListener<'_> {
         }
     }
 }
-
 pub fn open_vim() -> io::Result<String> {
     let temp_file = NamedTempFile::new()?;
     let file_path = temp_file.path().to_str().unwrap().to_string();
