@@ -21,3 +21,5 @@ notify = "6.1.1"
 objc = "0.2.7"
 rdev = { version = "0.5.3", features = ["unstable_grab"] }
 tfc = "0.7.0"
+tempfile = "3.8"
+ctrlc = "3.2"

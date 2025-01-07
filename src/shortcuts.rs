@@ -1,6 +1,9 @@
 use crate::{clipboard, style};
 use rdev;
+use std::io;
+use std::process::Command;
 use std::{thread, time::Duration};
+use tempfile::NamedTempFile;
 use tfc::KeyboardContext;
 
 pub struct HotkeyListener<'a> {
@@ -22,6 +25,13 @@ impl HotkeyListener<'_> {
                 rdev::Key::Alt => {
                     println!("== starting style ==");
                     self.forming_style = true;
+                }
+                rdev::Key::KeyT => {
+                    let _ = std::thread::spawn(|| {
+                        if let Err(e) = open_vim() {
+                            eprintln!("Error Vim: {}", e);
+                        }
+                    });
                 }
                 rdev::Key::Num1
                 | rdev::Key::Num2
@@ -52,12 +62,44 @@ impl HotkeyListener<'_> {
             _ => {}
         };
 
-        if self.forming_style {
-            None
-        } else {
+        if !self.forming_style {
             Some(event)
+        } else {
+            None
         }
     }
+}
+
+pub fn open_vim() -> io::Result<String> {
+    let temp_file = NamedTempFile::new()?;
+    let file_path = temp_file.path().to_str().unwrap().to_string();
+
+    let mut process = Command::new("urxvt")
+        .args([
+            "-geometry",
+            "60x5",
+            "-name",
+            "popup-bottom-center",
+            "-e",
+            "vim",
+            &file_path,
+        ])
+        .spawn()?;
+
+    let status = process.wait()?;
+    if !status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Vim did not exit correctly",
+        ));
+    }
+
+    let contents = std::fs::read_to_string(&file_path)?;
+    println!("{}", contents);
+
+    std::fs::remove_file(&file_path)?;
+
+    Ok(contents)
 }
 
 pub fn update_style(style: &mut style::Style, key: rdev::Key) {

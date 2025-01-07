@@ -4,9 +4,11 @@ mod style;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use ctrlc;
 use glob::glob;
 use notify::{poll::ScanEvent, Config, PollWatcher, RecursiveMode, Watcher};
 use rdev;
+use std::process;
 use std::{cell::RefCell, path::Path, rc::Rc, time::Duration};
 
 #[derive(Parser)]
@@ -51,6 +53,12 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    ctrlc::set_handler(move || {
+        println!("\nExiting program...");
+        process::exit(0); // Exit with a success status
+    })
+    .expect("Error setting Ctrl+C handler");
+
     match &cli.command {
         Commands::Start => {
             std::thread::spawn(|| {
@@ -85,7 +93,7 @@ fn main() {
                         if *latex {
                             let path = Path::new(&path);
                             let no_ext_path = path.with_extension("");
-                            let no_extension = no_ext_path.to_str().unwrap();
+                            let _no_extension = no_ext_path.to_str().unwrap();
                             let file_stem = path.file_stem().unwrap().to_str().unwrap();
 
                             println!(
@@ -205,7 +213,6 @@ fn autosave_pdf_tex() -> Result<(), notify::Error> {
 
     Ok(())
 }
-
 
 fn list_figures() {
     for path in glob("figures/**/*.svg")
