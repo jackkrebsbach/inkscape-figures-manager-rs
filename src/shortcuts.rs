@@ -35,18 +35,15 @@ impl HotkeyListener<'_> {
                     self.forming_style = true;
                 }
                 rdev::Key::KeyT => {
-                    if self.forming_style {
-                        let vim_active = Arc::clone(&self.vim_active);
-                        if !vim_active.load(Ordering::SeqCst) {
-                            vim_active.store(true, Ordering::SeqCst);
-                            std::thread::spawn(move || {
-                                if let Err(e) = open_vim() {
-                                    eprintln!("Error Vim: {}", e);
-                                }
-                                vim_active.store(false, Ordering::SeqCst);
-                            });
-                        }
-                        self.forming_style = false
+                    let vim_active = Arc::clone(&self.vim_active);
+                    if !vim_active.load(Ordering::SeqCst) {
+                        vim_active.store(true, Ordering::SeqCst);
+                        std::thread::spawn(move || {
+                            if let Err(e) = open_vim() {
+                                eprintln!("Error Vim: {}", e);
+                            }
+                            vim_active.store(false, Ordering::SeqCst);
+                        });
                     }
                 }
                 rdev::Key::Num1
@@ -105,6 +102,12 @@ pub fn open_vim() -> io::Result<String> {
         ])
         .spawn()?;
 
+    thread::sleep(Duration::from_millis(100));
+
+    Command::new("xdotool")
+        .args(["search", "--name", "popup-middle-center", "windowactivate"])
+        .spawn()?;
+
     let status = process.wait()?;
     if !status.success() {
         return Err(io::Error::new(
@@ -112,6 +115,12 @@ pub fn open_vim() -> io::Result<String> {
             "Vim did not exit correctly",
         ));
     }
+
+    Command::new("osascript")
+        .args(["-e", "tell application \"Inkscape\" to activate"])
+        .spawn()?;
+
+    thread::sleep(Duration::from_millis(100));
 
     // Read the file contents
     let contents = std::fs::read_to_string(&file_path)?;
@@ -134,27 +143,8 @@ pub fn open_vim() -> io::Result<String> {
     );
 
     copy_mime(TARGET, &svg.to_string());
-
-    //let ctrl_pressed = Arc::new(AtomicBool::new(false));
-    //let ctrl_clone = ctrl_pressed.clone();
-    //
-    //thread::spawn(move || {
-    //    ctrl_clone.store(true, Ordering::SeqCst);
-    //
-    //    simulate(&EventType::KeyPress(Key::MetaLeft)).unwrap(); // Command key press
-    //    simulate(&EventType::KeyPress(Key::KeyV)).unwrap(); // V key press
-    //
-    //    thread::sleep(Duration::from_millis(100));
-    //
-    //    simulate(&EventType::KeyRelease(Key::KeyV)).unwrap(); // V key release
-    //    simulate(&EventType::KeyRelease(Key::MetaLeft)).unwrap(); // Command key release
-    //
-    //    ctrl_clone.store(false, Ordering::SeqCst);
-    //});
-    //
-    //while ctrl_pressed.load(Ordering::SeqCst) {
-    //    thread::sleep(Duration::from_millis(10));
-    //}
+    thread::sleep(Duration::from_millis(100));
+    paste_style();
 
     Ok(contents)
 }
