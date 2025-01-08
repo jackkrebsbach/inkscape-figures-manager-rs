@@ -1,5 +1,5 @@
+use crate::clipboard::copy_mime;
 use crate::{clipboard, style};
-use rdev;
 use std::io;
 use std::process::Command;
 use std::sync::{
@@ -9,6 +9,8 @@ use std::sync::{
 use std::{thread, time::Duration};
 use tempfile::Builder;
 use tfc::KeyboardContext;
+
+const TARGET: &str = "image/x-inkscape-svg";
 
 pub struct HotkeyListener<'a> {
     forming_style: bool,
@@ -33,15 +35,18 @@ impl HotkeyListener<'_> {
                     self.forming_style = true;
                 }
                 rdev::Key::KeyT => {
-                    let vim_active = Arc::clone(&self.vim_active);
-                    if !vim_active.load(Ordering::SeqCst) {
-                        vim_active.store(true, Ordering::SeqCst);
-                        std::thread::spawn(move || {
-                            if let Err(e) = open_vim() {
-                                eprintln!("Error Vim: {}", e);
-                            }
-                            vim_active.store(false, Ordering::SeqCst);
-                        });
+                    if self.forming_style {
+                        let vim_active = Arc::clone(&self.vim_active);
+                        if !vim_active.load(Ordering::SeqCst) {
+                            vim_active.store(true, Ordering::SeqCst);
+                            std::thread::spawn(move || {
+                                if let Err(e) = open_vim() {
+                                    eprintln!("Error Vim: {}", e);
+                                }
+                                vim_active.store(false, Ordering::SeqCst);
+                            });
+                        }
+                        self.forming_style = false
                     }
                 }
                 rdev::Key::Num1
@@ -80,6 +85,7 @@ impl HotkeyListener<'_> {
         }
     }
 }
+
 pub fn open_vim() -> io::Result<String> {
     let temp_file = Builder::new().suffix(".tex").tempfile()?;
     let file_path = temp_file.path().to_str().unwrap().to_string();
@@ -107,10 +113,48 @@ pub fn open_vim() -> io::Result<String> {
         ));
     }
 
+    // Read the file contents
     let contents = std::fs::read_to_string(&file_path)?;
     println!("{}", contents);
 
+    // Remove the temporary file
     std::fs::remove_file(&file_path)?;
+
+    // Generate SVG from LaTeX
+    let font_size = "16"; // Hardcoded font size
+    let font = "Monospace"; // Hardcoded font family
+    let svg = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg>
+  <text
+     style="font-size:{}px; font-family:'{}';-inkscape-font-specification:'{}, Normal';fill:#000000;fill-opacity:1;stroke:none;"
+     xml:space="preserve"><tspan sodipodi:role="line">{}</tspan></text>
+</svg>"#,
+        font_size, font, font, contents
+    );
+
+    copy_mime(TARGET, &svg.to_string());
+
+    //let ctrl_pressed = Arc::new(AtomicBool::new(false));
+    //let ctrl_clone = ctrl_pressed.clone();
+    //
+    //thread::spawn(move || {
+    //    ctrl_clone.store(true, Ordering::SeqCst);
+    //
+    //    simulate(&EventType::KeyPress(Key::MetaLeft)).unwrap(); // Command key press
+    //    simulate(&EventType::KeyPress(Key::KeyV)).unwrap(); // V key press
+    //
+    //    thread::sleep(Duration::from_millis(100));
+    //
+    //    simulate(&EventType::KeyRelease(Key::KeyV)).unwrap(); // V key release
+    //    simulate(&EventType::KeyRelease(Key::MetaLeft)).unwrap(); // Command key release
+    //
+    //    ctrl_clone.store(false, Ordering::SeqCst);
+    //});
+    //
+    //while ctrl_pressed.load(Ordering::SeqCst) {
+    //    thread::sleep(Duration::from_millis(10));
+    //}
 
     Ok(contents)
 }
